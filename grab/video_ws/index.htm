@@ -1,0 +1,224 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+    <head>
+        <title>Test</title>
+        <script type="text/javascript" src="jquery.js"></script>
+        <script type="text/javascript">
+            var noSupportMessage = "Your browser cannot support WebSocket!";
+            var ws;
+            var stop = true;
+            var send_points = false;
+            var save_img = false;
+            var check_st = 0;
+
+            function appendMessage(message) {
+                $('body').append(message);
+            }
+            function disableButtons(disable) {
+                var disabled_value = disable ? "disabled" : "";
+                var enabled_value = disable ? "" : "disabled";
+                $('#videoButton').attr("disabled", disabled_value);
+                $('#checkButton').attr("disabled", disabled_value);
+                $('#pointsButton').attr("disabled", disabled_value);
+                $('#saveButton').attr("disabled", disabled_value);
+                $('#matchButton').attr("disabled", disabled_value);
+                $('#killButton').attr("disabled", disabled_value);
+                $('#connectButton').attr("disabled", enabled_value);
+                $('#disconnectButton').attr("disabled", disabled_value);
+            }
+
+            function connectSocketServer() {
+                var support = "MozWebSocket" in window ? 'MozWebSocket' : ("WebSocket" in window ? 'WebSocket' : null);
+
+                if (support == null) {
+                    appendMessage("* " + noSupportMessage + "<br/>");
+                    return;
+                }
+
+                appendMessage("* Connecting to server ..<br/>");
+                // create a new websocket and connect
+                ws = new window[support]('ws://localhost:8000/');
+                ws.binaryType = "arraybuffer";
+
+                // when data is comming from the server, this metod is called
+                ws.onmessage = function (evt) {
+                    if (evt.data) { /*
+                        //console.log("ws.onmessage " + evt.data[0])
+                        try {
+                            //var msg = JSON.parse(evt.data);
+                            var byteArray = new Uint8Array(evt.data);
+                            if (byteArray.length < 1000) {
+                                //var msg = JSON.parse(evt.data);
+                                //appendMessage("evt.data: " + byteArray.toString() + "<br/>");
+                                var str = String.fromCharCode.apply(null, byteArray);
+                                //appendMessage("evt.data.str: " + str + "<br/>");
+                                var msg = JSON.parse(str);
+                                //appendMessage("status: " + msg.status + "<br/>");
+                            } else {
+                                console.log("ws.onmessage 1")
+                                drawImage(evt.data);
+                            }
+                        } catch (err) {
+                            console.log("ws.onmessage 2")
+                            drawImage(evt.data);
+                        } */
+                        drawImage(evt.data);
+                    }
+                };
+
+                // when the connection is established, this method is called
+                ws.onopen = function () {
+                    appendMessage('* Connection open<br/>');
+                    disableButtons(false);
+                };
+
+                // when the connection is closed, this method is called
+                ws.onclose = function () {
+                    appendMessage('* Connection closed<br/>');
+                    disableButtons(true);
+                }
+            }
+          
+            function onOffMessage() {
+                if (ws) {
+                    if (stop) {
+                        stop=false;
+                        ws.send("go");
+                        $('#videoButton').attr("value", "Video Off");
+                    } else {
+                        stop = true;
+                        $('#videoButton').attr("value", "Video On");
+                    }
+                }
+                $('#status').text('stop: ' + stop.toString() + ' / send_points: ' + send_points.toString());
+            }
+            function sendMessage(msg) {
+                if (ws) {
+                    ws.send(msg);
+                    if (msg == 'save') save_img = true;
+                    if (msg == 'check') {
+                        var lbl = "Edges";
+                        switch (++check_st) {
+                        case 1: lbl = "Points"; break;
+                        case 2: lbl = "Stop"; break;
+                        default: check_st = 0;
+                        }
+                        $('#checkButton').attr("value", lbl);
+                    }
+                }
+            }
+
+            function pointsMessage() {
+                if (ws) {
+                    if (send_points) {
+                        send_points = false;
+                    } else {
+                        ws.send("clear_points");
+                        send_points = true;
+                    }
+                } else {
+                    send_points = false;
+                }
+                $('#pointsButton').attr("value", send_points ? "ROI End" : "ROI Init");
+                $('#status').text('stop: ' + stop.toString() + ' / send_points: ' + send_points.toString());
+            }
+
+            function disconnectWebSocket() {
+                if (ws) {
+                    ws.close();
+                    ws = null;
+                }
+            }
+
+            function connectWebSocket() {
+                connectSocketServer();
+            }
+
+            window.onload = function () {
+                disableButtons(true);
+                $('#status').text('stop: ' + stop.toString() + ' / send_points: ' + send_points.toString());
+            }
+
+            function drawImage(data) {
+                var imageWidth = 640, imageHeight = 480; // hardcoded width & height. 
+                var byteArray = new Uint8Array(data);
+				console.log("drawImage() byteArray.len " + String(byteArray.length))
+
+                var canvas = document.createElement('canvas');
+                canvas.width = imageWidth;
+                canvas.height = imageHeight;
+                var ctx = canvas.getContext('2d');
+
+                var imageData = ctx.getImageData(0, 0, imageWidth, imageHeight); // total size: imageWidth * imageHeight * 4; color format BGRA
+                var dataLen = imageData.data.length;
+                imageData.data.set(byteArray);
+
+                ctx.putImageData(imageData, 0, 0);
+
+                // create a new element and add it to div
+                var image = document.createElement('img');
+                image.width = imageWidth;
+                image.height = imageHeight;
+                image.src = canvas.toDataURL();
+
+                var div = document.getElementById('img');
+				if (div.childNodes.length > 0)
+					div.replaceChild(image, div.childNodes[0])
+				else
+				    div.appendChild(image);
+
+				if (save_img) {
+				    save_img = false;
+				    var image2 = document.createElement('img');
+				    image2.width = imageWidth/2;
+				    image2.height = imageHeight / 2;
+				    image2.src = canvas.toDataURL();
+				    var div2 = document.getElementById('img_saved');
+				    if (div2.childNodes.length > 0)
+				        div2.replaceChild(image2, div2.childNodes[0])
+				    else
+				        div2.appendChild(image2);
+				}
+				
+                if (!stop)
+                    ws.send("go");
+            }
+            
+            function printMousePos(event) {
+                if (send_points) {
+                    var div = document.getElementById('img');
+                    if (div) {
+                        //var rect = div.getBoundingClientRect();
+                        //console.log(rect.top, rect.right, rect.bottom, rect.left);
+                        var x0 = 10; // changes with scroll and the like
+                        var y0 = 30;
+                        if (event.clientX > x0 && event.clientX < (640 + x0) &&
+                                event.clientY > y0 && event.clientY < (480 + y0)) {
+                            px = event.clientX - x0;
+                            py = event.clientY - y0;
+                            var str = "click: " + px.toString() + "," + py.toString();
+                            //appendMessage(str + " (inside)<br/>");
+                            ws.send(str);
+                        }
+                    }
+                }
+            }
+
+            document.addEventListener("click", printMousePos);
+   
+    </script>
+    </head>
+<body>
+    <input type="button" id="connectButton" value="Connect" onclick="connectWebSocket()" />
+    <input type="button" id="disconnectButton" value="Disconnect" onclick="disconnectWebSocket()" />
+    <input type="button" id="videoButton" value="Video On" onclick="onOffMessage()" />
+    <input type="button" id="checkButton" value="Edges" onclick="sendMessage('check')" />
+    <input type="button" id="pointsButton" value="ROI Init" onclick="pointsMessage()" />
+    <input type="button" id="saveButton" value="Save" onclick="sendMessage('save')" />
+    <input type="button" id="matchButton" value="Match" onclick="sendMessage('match')" />
+    <input type="button" id="killButton" value="Kill Server" onclick="sendMessage('kill')" />
+    <br /><div id="img"></div>
+    <p id="status"></p>
+    <div id="img_saved"></div>
+</body>
+</html>
