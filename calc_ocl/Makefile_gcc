@@ -1,0 +1,4 @@
+#@"C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat" x86
+
+all:
+    g++     get_primes.cpp   -o get_primes  -lOpenCL -lboost_system -lboost_serialization -lboost_thread

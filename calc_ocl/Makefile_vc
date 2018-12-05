@@ -1,0 +1,4 @@
+#@"C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat" x86
+
+all:
+    cl get_primes.cpp /EHsc /Ot /I ..\libcl\libCL  /I ..\boost_1_55_0 /link ..\libcl\libCL\CL\x64\OpenCL.lib /LIBPATH:"C:/src/boost_1_55_0/stage/lib"
