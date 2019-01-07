@@ -24,9 +24,9 @@ forwardOpen = [0x6f,0x00, # SendRRData
 0x03, # Timeout multiplier
 0x00,0x00,0x00, # Reserverd
 0x20,0xa1,0x07,0x00, # Request packet rate microseconds O->T
-0x92,0x49, # Network connection parameters O->T
+0x0,0x48, # Network connection parameters O->T
 0x20,0xa1,0x07,0x00, # Request packet rate microseconds T->O
-0x06,0x48, # Network connection parameters T->O
+0x0,0x48, # Network connection parameters T->O
 0x01, # Transport type trigger
 0x04, # Connection path size
 0x20,0x04, # assembly class (4)
@@ -59,9 +59,24 @@ import socket,time,threading,signal,sys,select,random,struct
 HOST = '172.24.0.73'
 PORT1 = 44818
 PORT2 = 2222
+
+config_instance = 128
+output_instance = 130
+output_size = 396
+input_instance = 129
+input_size = 4
+
 T_RATE_us = 100000
 
 for i in range(4): forwardOpen[74+i] = forwardOpen[68+i] = (T_RATE_us >> i*8)&0x0ff
+forwardOpen[72] = (output_size+6)&0x0ff
+forwardOpen[73] |= 1 if ((output_size+6)&0x100) else 0
+forwardOpen[78] = (input_size+2)&0x0ff
+forwardOpen[79] |= 1 if ((input_size+2)&0x100) else 0
+forwardOpen[85] = config_instance
+forwardOpen[87] = output_instance
+forwardOpen[89] = input_instance
+
 forwardOpen_stream = ''.join(chr(x) for x in forwardOpen)
 
 s=None
