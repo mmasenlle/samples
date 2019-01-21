@@ -77,8 +77,6 @@ forwardOpen[85] = config_instance
 forwardOpen[87] = output_instance
 forwardOpen[89] = input_instance
 
-forwardOpen_stream = ''.join(chr(x) for x in forwardOpen)
-
 s=None
 s1=None
 s2=None
@@ -95,11 +93,13 @@ while True:
         data = s.recv(1024)
 
         print 'reg_session_resp(',len(data),'):', [hex(ord(c)) for c in data ]
-
+        
+        for i in range(4,8): forwardOpen[i] = ord(data[i]) # session id
+        forwardOpen_stream = ''.join(chr(x) for x in forwardOpen)
+        
         s1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s1.setblocking(0)
         s1.bind(('', 2222))
-
 
         print 'About to forwardOpen'
         s.send(forwardOpen_stream)
