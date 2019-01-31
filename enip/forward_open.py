@@ -50,7 +50,7 @@ O_T_header = [
 0x01,0x00, # Secuence Data
 0x01,0x00,0x00,0x00, # Header 32 bit
 ]
-O_T_data = [0]*396
+#O_T_data = [0]*310
 
 
 # Echo client program
@@ -76,6 +76,11 @@ forwardOpen[79] |= 1 if ((input_size+2)&0x100) else 0
 forwardOpen[85] = config_instance
 forwardOpen[87] = output_instance
 forwardOpen[89] = input_instance
+
+O_T_header[16] = forwardOpen[72]
+O_T_header[17] = forwardOpen[73]&1
+
+O_T_data = [0]*output_size
 
 s=None
 s1=None
@@ -130,7 +135,7 @@ while True:
             ready = select.select([s1], [], [], 5)
             if not ready[0]: raise Exception('Recv error ?')
             rdat = s1.recv(1024)
-            #print 'Recv:', [hex(ord(c)) for c in rdat ]
+            print 'Recv:', [hex(ord(c)) for c in rdat[-input_size:] ]
             print 'Recv',len(rdat),time.time() - t0
             t0 = time.time()
             
