@@ -2,8 +2,8 @@
 import time,struct,ctypes
 
 
-opener = ctypes.cdll.LoadLibrary('Opener.dll')
-# opener = ctypes.cdll.LoadLibrary('Opener.so')
+opener = ctypes.cdll.LoadLibrary('OpENer.dll')
+# opener = ctypes.cdll.LoadLibrary('OpENer.so')
 opener.config_assemblies(151,20,100,32,150,32)
 # opener.set_print_debug(0) # to quiet verbosity
 opener.get_data_output.restype=ctypes.c_void_p
