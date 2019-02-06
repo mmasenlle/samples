@@ -14,7 +14,7 @@
 from pypylon import pylon
 from pypylon import genicam
 
-import cv2
+import cv2,numpy
 import sys
 
 # Number of images to be grabbed.
@@ -50,8 +50,11 @@ try:
     # Print the model name of the camera.
     print("Using device ", camera.GetDeviceInfo().GetModelName())
     
+    converter = pylon.ImageFormatConverter()
+    converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+
     camera.Open()
-    pylon.FeaturePersistence.Load('acA640-300gc_22662999.pfs', camera.GetNodeMap(), True)
+    #pylon.FeaturePersistence.Load('acA640-300gc_22662999.pfs', camera.GetNodeMap(), True)
     camera.AcquisitionFrameRateEnable = 1
     camera.AcquisitionFrameRateAbs = 10 # 200 # fps
     camera.ExposureTimeRaw = 1000 # 5 # usecs
@@ -94,18 +97,22 @@ try:
             # Access the image data.
             # print("SizeX: ", grabResult.Width)
             # print("SizeY: ", grabResult.Height)
-            img = grabResult.Array
+            #img = grabResult.Array
             # print("Gray value of first pixel: ", img[0, 0])
             # print(img)
+            
+            image = converter.Convert(grabResult)
+            img = numpy.ndarray(buffer=image.GetBuffer(),shape=(image.GetHeight(),image.GetWidth(),3),dtype=numpy.uint8)
+            
             cv2.imshow('image',img)
-            print img.shape
-            backtorgb = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
-            print backtorgb.shape
+            # print img.shape
+            # backtorgb = cv2.cvtColor(img,cv2.COLOR_GRAY2RGB)
+            # print backtorgb.shape
             
             if i % 20 == 0:
                 video = cv2.VideoWriter('video'+str(i/20)+'.avi',cv2.VideoWriter_fourcc(*"XVID"),10,(640,480))
 
-            video.write(backtorgb)
+            video.write(img)
                 
             i += 1
             print i
