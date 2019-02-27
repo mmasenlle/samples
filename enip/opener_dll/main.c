@@ -49,6 +49,12 @@ DWORD WINAPI ThreadFunc(void* data) {
 __declspec(dllexport) int init_loop(int nif) {
   HANDLE thread = CreateThread(NULL, 0, ThreadFunc, (void*)nif, 0, NULL);
 }
+int serial_number = 123456789;
+__declspec(dllexport) int set_serial_number(int sn) {
+  if (sn > 0) serial_number = sn;
+  return serial_number;
+}
+
 int opener_loop(int nif) {
   EipUint16 nUniqueConnectionID;
 
@@ -89,7 +95,7 @@ int main(int argc, char *arg[]) {
 #endif
 
   /*for a real device the serial number should be unique per device */
-  SetDeviceSerialNumber(123456789);
+  SetDeviceSerialNumber(serial_number);
 
   /* nUniqueConnectionID should be sufficiently random or incremented and stored
    *  in non-volatile memory each time the device boots.
