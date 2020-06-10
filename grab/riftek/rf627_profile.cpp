@@ -8,6 +8,11 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <windows.h>
+
+extern "C" {
+#include "rf627_profile.h"
+}
 
 using namespace SDK::SCANNERS::RF62X;
 
@@ -15,7 +20,7 @@ static rf627old *scanner = nullptr;
 
 //set PYTHONHOME=C:\ProgramData\Anaconda3
 //set QT_QPA_PLATFORM_PLUGIN_PATH=%PYTHONHOME%\Library\plugins\platforms
-#define MATPLOTLIB
+//#define MATPLOTLIB
 #ifdef MATPLOTLIB
 #include "matplotlibcpp.h"
 namespace plt = matplotlibcpp;
@@ -25,7 +30,7 @@ std::mutex mtx;
 std::condition_variable cond;
 std::list<std::shared_ptr<profile2D_t>> profiles;
 static volatile bool keep_running = true;
-static volatile bool keep_grabbing = true;
+static volatile bool keep_grabbing = false;
 std::thread grabber, storer;
 
 void start_grabbing()
@@ -45,6 +50,10 @@ void grab_profiles()
 {
 	long cnt = 0;
 	double min = 10000.0, max = -1., sum = .0;
+
+	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)) {
+		std::cerr << "grab_profiles()->Error setting real time priority " << GetLastError() << std::endl;
+	}
 	while (keep_running)
 	{
 		{ std::unique_lock<std::mutex> lk(mtx);
@@ -87,12 +96,76 @@ void stop_scanner()
 	keep_running = false;
 	cond.notify_one();
 	grabber.join();
+#ifdef STORER
 	storer.join();
+#endif
 	sdk_cleanup();
 }
 
+#ifdef STORER
+void store_profiles(int fps, bool plot_on)
+{
+	std::ofstream ofs("profile.csv");
+	long tt = 0;
+	int tplot = (int)(fps / 10);
+#ifdef MATPLOTLIB
+	if (plot_on) plt::figure_size(1200, 780);
+#endif
+	while (keep_running || !profiles.empty())
+	{
+		std::unique_lock<std::mutex> lk(mtx);
+		if (profiles.empty()) cond.wait(lk);
+		if (!profiles.empty()) {
+			auto profile = profiles.front();
+			profiles.pop_front();
+			lk.unlock();
+			double t = (tt++ / (double)fps);
+			ofs << t << ";";
+			std::vector<double> x, z;
+			for (auto point : profile->points)
+			{
+				if (plot_on && (tt % tplot == 0) && point.z)
+				{
+					x.push_back(point.x);
+					z.push_back(point.z);
+				}
+				ofs << point.x << ";" << point.z << ";";
+			}
+			ofs << std::endl;
+#ifdef MATPLOTLIB
+			if (!x.empty())
+			{
+				std::string title = "Profile (t=" + std::to_string(t).substr(0, 4) + "s)";
+				plt::clf();
+				plt::plot(x, z);
+				plt::xlim(-25, 25);
+				plt::ylim(0, 50);
+				plt::grid(true);
+				plt::title(title);
+				plt::pause(0.01);
+			}
+#endif
+		}
+	}
 
-int init_scanner()
+	std::cout << tt << " profiles saved in CSV" << std::endl;
+}
+#endif
+
+int get_profile(float *xz)
+{
+	std::unique_lock<std::mutex> lk(mtx);
+	if (!profiles.empty()) {
+		auto profile = profiles.front();
+		profiles.pop_front();
+		lk.unlock();
+		memcpy(xz, profile->points.data(), profile->points.size() * sizeof(point2D_t));
+		return profile->points.size();
+	}
+	return 0;
+}
+
+int init_scanner(int fps, bool plot_on)
 {
 	sdk_init();
 
@@ -140,7 +213,9 @@ int init_scanner()
 			}
 		}
 		grabber = std::thread(grab_profiles);
-
+#ifdef STORER
+		storer = std::thread(store_profiles, fps, plot_on);
+#endif
 	}
 	else {
 		std::cerr << "Scanner not found" << std::endl;
@@ -148,56 +223,7 @@ int init_scanner()
 	return list.size();
 }
 
-void store_profiles(int fps, bool plot_on)
-{
-	std::ofstream ofs("profile.csv");
-	long tt = 0;
-	int tplot = (int)(fps / 10);
-#ifdef MATPLOTLIB
-	if (plot_on) plt::figure_size(1200, 780);
-#endif
-	while (keep_running || !profiles.empty())
-	{
-		std::unique_lock<std::mutex> lk(mtx);
-		if (profiles.empty()) cond.wait(lk);
-		if (!profiles.empty()) {
-			auto profile = profiles.front();
-			profiles.pop_front();
-			lk.unlock();
-			double t = (tt++ / (double)fps);
-			ofs << t << ";";
-			std::vector<double> x, z;
-			for (auto point : profile->points)
-			{
-				if (plot_on && (tt % tplot == 0) && point.z)
-				{
-					x.push_back(point.x);
-					z.push_back(point.z);
-				}
-				ofs << point.x << ";" << point.z << ";";
-			}
-			ofs << std::endl;
-#ifdef MATPLOTLIB
-			if (!x.empty())
-			{
-				std::string title = "Profile (t=" + std::to_string(t).substr(0, 4) + "s)";
-				plt::clf();
-				plt::plot(x, z);
-				plt::xlim(-25, 25);
-				plt::ylim(20, 50);
-				plt::grid(true);
-				plt::title(title);
-				plt::pause(0.01);
-			}
-#endif
-		}
-	}
-
-	std::cout << tt << " profiles saved in CSV" << std::endl;
-	//std::cout << "Press ENTER to exit" << std::endl;
-	//getchar();
-}
-
+#ifndef AS_LIBRARY
 int main(int argc, char *argv[])
 {
 	int cnt = 2;
@@ -212,9 +238,8 @@ int main(int argc, char *argv[])
 		std::cerr << "Usage: " << argv[0] << " <time> <plot on 0|1> <fps>" << std::endl;
 	}
 
-	if (init_scanner())
+	if (init_scanner(fps, plot_on))
 	{
-		storer = std::thread(store_profiles, fps, plot_on);
 		std::cout << "Press ENTER to start recording profile" << std::endl;
 		getchar();
 		start_grabbing();
@@ -231,3 +256,4 @@ int main(int argc, char *argv[])
 		getchar();
 	}
 }
+#endif
